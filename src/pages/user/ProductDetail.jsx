@@ -125,7 +125,14 @@ export default function ProductDetail() {
     addToCart(product, quantity, selectedVariant);
   };
 
-  const handleReviewSubmit = (e) => {
+  // Prefill review name with current user name if logged in
+  useEffect(() => {
+    if (currentUser) {
+      setNewReviewName(currentUser.displayName || currentUser.email?.split('@')[0] || '');
+    }
+  }, [currentUser]);
+
+  const handleReviewSubmit = async (e) => {
     e.preventDefault();
     if (!newReviewName || !newReviewComment) return;
 
@@ -137,8 +144,47 @@ export default function ProductDetail() {
       date: new Date().toISOString().split('T')[0]
     };
 
-    setReviewsList(prev => [newRev, ...prev]);
-    setNewReviewName('');
+    const updatedReviews = [newRev, ...reviewsList];
+    const totalRating = updatedReviews.reduce((sum, r) => sum + r.rating, 0);
+    const avgRating = Number((totalRating / updatedReviews.length).toFixed(1));
+
+    // Update locally in component state
+    setReviewsList(updatedReviews);
+    setProduct(prev => ({
+      ...prev,
+      rating: avgRating,
+      reviewsCount: updatedReviews.length,
+      reviews: updatedReviews
+    }));
+
+    if (isFirebaseMock) {
+      // Save in mock local storage database
+      const dbProducts = JSON.parse(localStorage.getItem('mock_products_db') || '[]');
+      const updatedList = dbProducts.map(p => {
+        if (p.id === id) {
+          return {
+            ...p,
+            rating: avgRating,
+            reviewsCount: updatedReviews.length,
+            reviews: updatedReviews
+          };
+        }
+        return p;
+      });
+      localStorage.setItem('mock_products_db', JSON.stringify(updatedList));
+    } else {
+      // Save in Live Firebase Firestore
+      try {
+        await updateDoc(doc(db, 'products', id), {
+          reviews: updatedReviews,
+          rating: avgRating,
+          reviewsCount: updatedReviews.length
+        });
+      } catch (err) {
+        console.error("Failed to persist product review to Firestore:", err);
+      }
+    }
+
     setNewReviewComment('');
     setNewReviewRating(5);
   };
