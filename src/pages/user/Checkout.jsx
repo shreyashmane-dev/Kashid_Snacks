@@ -50,6 +50,25 @@ export default function Checkout() {
   const [error, setError] = useState('');
   const [promoError, setPromoError] = useState('');
   const [tempOrderData, setTempOrderData] = useState(null);
+  const [checkoutStep, setCheckoutStep] = useState(1); // 1 = Address, 2 = Payment
+
+  const handleProceedToPayment = (e) => {
+    e.preventDefault();
+    if (!name || !address || !city || !state || !pincode || !phone) {
+      setError("Please fill in all shipping details");
+      return;
+    }
+    if (pincode.length !== 6 || isNaN(pincode)) {
+      setError("Pincode must be a 6-digit number");
+      return;
+    }
+    if (phone.length < 10 || isNaN(phone.replace('+', ''))) {
+      setError("Please enter a valid phone number");
+      return;
+    }
+    setError('');
+    setCheckoutStep(2);
+  };
 
   const handleGetLiveLocation = () => {
     if (!navigator.geolocation) {
@@ -366,212 +385,254 @@ export default function Checkout() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative z-10">
         {/* SHIPPING FORM - LEFT (7 Columns) */}
-        <form onSubmit={handlePlaceOrder} className="lg:col-span-7 space-y-6">
-          {/* Shipping Address Card */}
-          <div className="glass-panel p-6 rounded-3xl bg-white/40 border-white/60">
-            <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-saffron" />
-                <h2 className="font-heading font-bold text-lg text-charcoal">Delivery Address</h2>
-              </div>
-              <button
-                type="button"
-                onClick={handleGetLiveLocation}
-                className="bg-maroon hover:bg-maroon-dark text-white font-heading font-bold text-[10px] px-3.5 py-1.5 rounded-full shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <MapPin className="w-3.5 h-3.5" /> Detect Live Location
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2">
-                <label className="block text-[10px] font-bold text-charcoal/60 uppercase mb-1.5 ml-1">Contact Name</label>
-                <input 
-                  type="text" 
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Amit Sharma"
-                  className="w-full glass-input rounded-full py-2.5 px-4 text-sm"
-                  required
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-[10px] font-bold text-charcoal/60 uppercase mb-1.5 ml-1">Street Address</label>
-                <input 
-                  type="text" 
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Flat / House No, Street, Landmark"
-                  className="w-full glass-input rounded-full py-2.5 px-4 text-sm"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-charcoal/60 uppercase mb-1.5 ml-1">City</label>
-                <input 
-                  type="text" 
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="Mumbai"
-                  className="w-full glass-input rounded-full py-2.5 px-4 text-sm"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-charcoal/60 uppercase mb-1.5 ml-1">State</label>
-                <input 
-                  type="text" 
-                  value={state}
-                  onChange={(e) => setState(e.target.value)}
-                  placeholder="Maharashtra"
-                  className="w-full glass-input rounded-full py-2.5 px-4 text-sm"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-charcoal/60 uppercase mb-1.5 ml-1">Pincode</label>
-                <input 
-                  type="text" 
-                  value={pincode}
-                  onChange={(e) => setPincode(e.target.value)}
-                  placeholder="400053"
-                  maxLength={6}
-                  className="w-full glass-input rounded-full py-2.5 px-4 text-sm"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-charcoal/60 uppercase mb-1.5 ml-1">Phone Number</label>
-                <input 
-                  type="tel" 
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="9876543210"
-                  className="w-full glass-input rounded-full py-2.5 px-4 text-sm"
-                  required
-                />
-              </div>
-            </div>
+        <div className="lg:col-span-7 space-y-6">
+          {/* Step indicator */}
+          <div className="flex items-center gap-3 bg-white/20 p-3 rounded-2xl border border-white/40">
+            <span className={`text-xs font-heading font-extrabold px-3 py-1 rounded-full transition-all ${checkoutStep === 1 ? 'bg-saffron text-white shadow-sm' : 'bg-charcoal/5 text-charcoal/50'}`}>1. Delivery Address</span>
+            <div className="flex-grow h-px bg-charcoal/10" />
+            <span className={`text-xs font-heading font-extrabold px-3 py-1 rounded-full transition-all ${checkoutStep === 2 ? 'bg-saffron text-white shadow-sm' : 'bg-charcoal/5 text-charcoal/50'}`}>2. Payment Details</span>
           </div>
 
-          {/* Payment Method Card */}
-          <div className="glass-panel p-6 rounded-3xl bg-white/40 border-white/60">
-            <div className="flex items-center gap-2 mb-6">
-              <CreditCard className="w-5 h-5 text-maroon" />
-              <h2 className="font-heading font-bold text-lg text-charcoal">Select Payment Method</h2>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {['UPI', 'Card', 'COD'].map((method) => (
-                <label 
-                  key={method}
-                  className={`flex flex-col items-center justify-center p-4 rounded-2xl border cursor-pointer transition-all relative ${
-                    paymentMethod === method 
-                      ? 'bg-saffron/10 border-saffron text-saffron-dark shadow-sm' 
-                      : 'glass-card border-saffron-light/20 text-charcoal/70'
-                  }`}
-                >
-                  <input 
-                    type="radio" 
-                    name="payment" 
-                    value={method} 
-                    checked={paymentMethod === method}
-                    onChange={() => setPaymentMethod(method)}
-                    className="sr-only"
-                  />
-                  <span className="font-heading font-bold text-sm">{method === 'COD' ? 'Cash On Delivery' : method}</span>
-                  <span className="text-[10px] text-charcoal/50 mt-1">
-                    {method === 'UPI' && 'GooglePay / Paytm'}
-                    {method === 'Card' && 'Debit or Credit'}
-                    {method === 'COD' && 'Pay at your door'}
-                  </span>
-                  {paymentMethod === method && (
-                    <CheckCircle className="absolute top-2 right-2 w-4 h-4 text-saffron" />
-                  )}
-                </label>
-              ))}
-            </div>
-
-            {/* Inline Secure Payment details */}
-            {paymentMethod === 'UPI' && (
-              <div className="mt-4 p-4 rounded-2xl bg-saffron-light/10 border border-saffron-light/20 space-y-2">
-                <label className="block text-[10px] font-bold text-charcoal/60 uppercase ml-1">UPI Address (VPA)</label>
-                <input 
-                  type="text" 
-                  value={upiId}
-                  onChange={(e) => setUpiId(e.target.value)}
-                  placeholder="e.g. name@upi"
-                  className="w-full glass-input rounded-full py-2.5 px-4 text-xs font-semibold"
-                  required
-                />
-              </div>
-            )}
-
-            {paymentMethod === 'Card' && (
-              <div className="mt-4 p-4 rounded-2xl bg-saffron-light/10 border border-saffron-light/20 space-y-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-charcoal/60 uppercase ml-1 mb-1">Card Number</label>
-                  <input 
-                    type="text" 
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(e.target.value.replace(/\s?/g, '').replace(/(\d{4})/g, '$1 ').trim().substring(0, 19))}
-                    placeholder="1234 5678 1234 5678"
-                    className="w-full glass-input rounded-full py-2.5 px-4 text-xs font-mono font-semibold"
-                    required
-                  />
+          {checkoutStep === 1 ? (
+            <form onSubmit={handleProceedToPayment} className="space-y-6">
+              {/* Shipping Address Card */}
+              <div className="glass-panel p-6 rounded-3xl bg-white/40 border-white/60">
+                <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-saffron" />
+                    <h2 className="font-heading font-bold text-lg text-charcoal">Delivery Address</h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGetLiveLocation}
+                    className="bg-maroon hover:bg-maroon-dark text-white font-heading font-bold text-[10px] px-3.5 py-1.5 rounded-full shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <MapPin className="w-3.5 h-3.5" /> Detect Live Location
+                  </button>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-charcoal/60 uppercase ml-1 mb-1">Expiry Date</label>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-charcoal/60 uppercase mb-1.5 ml-1">Contact Name</label>
                     <input 
                       type="text" 
-                      value={cardExpiry}
-                      onChange={(e) => {
-                        let val = e.target.value.replace(/\D/g, '');
-                        if (val.length > 2) val = val.substring(0, 2) + '/' + val.substring(2, 4);
-                        setCardExpiry(val.substring(0, 5));
-                      }}
-                      placeholder="MM/YY"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Amit Sharma"
+                      className="w-full glass-input rounded-full py-2.5 px-4 text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-charcoal/60 uppercase mb-1.5 ml-1">Street Address</label>
+                    <input 
+                      type="text" 
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="Flat / House No, Street, Landmark"
+                      className="w-full glass-input rounded-full py-2.5 px-4 text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-charcoal/60 uppercase mb-1.5 ml-1">City</label>
+                    <input 
+                      type="text" 
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="Mumbai"
+                      className="w-full glass-input rounded-full py-2.5 px-4 text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-charcoal/60 uppercase mb-1.5 ml-1">State</label>
+                    <input 
+                      type="text" 
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      placeholder="Maharashtra"
+                      className="w-full glass-input rounded-full py-2.5 px-4 text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-charcoal/60 uppercase mb-1.5 ml-1">Pincode</label>
+                    <input 
+                      type="text" 
+                      value={pincode}
+                      onChange={(e) => setPincode(e.target.value)}
+                      placeholder="400053"
+                      maxLength={6}
+                      className="w-full glass-input rounded-full py-2.5 px-4 text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-charcoal/60 uppercase mb-1.5 ml-1">Phone Number</label>
+                    <input 
+                      type="tel" 
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="9876543210"
+                      className="w-full glass-input rounded-full py-2.5 px-4 text-sm"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                type="submit" 
+                className="w-full bg-gradient-to-r from-saffron to-saffron-dark hover:from-saffron-dark hover:to-maroon text-white font-heading font-bold py-4 rounded-full shadow-md flex items-center justify-center gap-2 text-sm transition-all"
+              >
+                Proceed to Payment
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handlePlaceOrder} className="space-y-6 animate-fadeIn">
+              {/* Read-only Address Card */}
+              <div className="glass-panel p-5 rounded-3xl bg-emerald-50/20 border-emerald-500/20 flex justify-between items-center gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                    <CheckCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-heading font-bold text-xs text-charcoal uppercase tracking-wider">Delivering to:</h3>
+                    <p className="text-xs font-semibold text-charcoal mt-1">{name} ({phone})</p>
+                    <p className="text-[11px] text-charcoal/70">{address}, {city}, {state} - {pincode}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCheckoutStep(1)}
+                  className="text-xs font-bold text-saffron hover:underline shrink-0"
+                >
+                  Edit
+                </button>
+              </div>
+
+              {/* Payment Method Card */}
+              <div className="glass-panel p-6 rounded-3xl bg-white/40 border-white/60">
+                <div className="flex items-center gap-2 mb-6">
+                  <CreditCard className="w-5 h-5 text-maroon" />
+                  <h2 className="font-heading font-bold text-lg text-charcoal">Select Payment Method</h2>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {['UPI', 'Card', 'COD'].map((method) => (
+                    <label 
+                      key={method}
+                      className={`flex flex-col items-center justify-center p-4 rounded-2xl border cursor-pointer transition-all relative ${
+                        paymentMethod === method 
+                          ? 'bg-saffron/10 border-saffron text-saffron-dark shadow-sm' 
+                          : 'glass-card border-saffron-light/20 text-charcoal/70'
+                      }`}
+                    >
+                      <input 
+                        type="radio" 
+                        name="payment" 
+                        value={method} 
+                        checked={paymentMethod === method}
+                        onChange={() => setPaymentMethod(method)}
+                        className="sr-only"
+                      />
+                      <span className="font-heading font-bold text-sm">{method === 'COD' ? 'Cash On Delivery' : method}</span>
+                      <span className="text-[10px] text-charcoal/50 mt-1">
+                        {method === 'UPI' && 'GooglePay / Paytm'}
+                        {method === 'Card' && 'Debit or Credit'}
+                        {method === 'COD' && 'Pay at your door'}
+                      </span>
+                      {paymentMethod === method && (
+                        <CheckCircle className="absolute top-2 right-2 w-4 h-4 text-saffron" />
+                      )}
+                    </label>
+                  ))}
+                </div>
+
+                {/* Inline Secure Payment details */}
+                {paymentMethod === 'UPI' && (
+                  <div className="mt-4 p-4 rounded-2xl bg-saffron-light/10 border border-saffron-light/20 space-y-2">
+                    <label className="block text-[10px] font-bold text-charcoal/60 uppercase ml-1">UPI Address (VPA)</label>
+                    <input 
+                      type="text" 
+                      value={upiId}
+                      onChange={(e) => setUpiId(e.target.value)}
+                      placeholder="e.g. name@upi"
                       className="w-full glass-input rounded-full py-2.5 px-4 text-xs font-semibold"
                       required
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-charcoal/60 uppercase ml-1 mb-1">CVV</label>
-                    <input 
-                      type="password" 
-                      value={cardCvv}
-                      onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').substring(0, 3))}
-                      placeholder="***"
-                      className="w-full glass-input rounded-full py-2.5 px-4 text-xs font-mono text-center font-semibold"
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+                )}
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-saffron to-saffron-dark hover:from-saffron-dark hover:to-maroon text-white font-heading font-bold py-4 rounded-full shadow-md flex items-center justify-center gap-2 text-sm transition-all"
-          >
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <>
-                Place Order (₹{cartTotal})
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
-        </form>
+                {paymentMethod === 'Card' && (
+                  <div className="mt-4 p-4 rounded-2xl bg-saffron-light/10 border border-saffron-light/20 space-y-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-charcoal/60 uppercase ml-1 mb-1">Card Number</label>
+                      <input 
+                        type="text" 
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(e.target.value.replace(/\s?/g, '').replace(/(\d{4})/g, '$1 ').trim().substring(0, 19))}
+                        placeholder="1234 5678 1234 5678"
+                        className="w-full glass-input rounded-full py-2.5 px-4 text-xs font-mono font-semibold"
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-charcoal/60 uppercase ml-1 mb-1">Expiry Date</label>
+                        <input 
+                          type="text" 
+                          value={cardExpiry}
+                          onChange={(e) => {
+                            let val = e.target.value.replace(/\D/g, '');
+                            if (val.length > 2) val = val.substring(0, 2) + '/' + val.substring(2, 4);
+                            setCardExpiry(val.substring(0, 5));
+                          }}
+                          placeholder="MM/YY"
+                          className="w-full glass-input rounded-full py-2.5 px-4 text-xs font-semibold"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-charcoal/60 uppercase ml-1 mb-1">CVV</label>
+                        <input 
+                          type="password" 
+                          value={cardCvv}
+                          onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').substring(0, 3))}
+                          placeholder="***"
+                          className="w-full glass-input rounded-full py-2.5 px-4 text-xs font-mono text-center font-semibold"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-saffron to-saffron-dark hover:from-saffron-dark hover:to-maroon text-white font-heading font-bold py-4 rounded-full shadow-md flex items-center justify-center gap-2 text-sm transition-all"
+              >
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <>
+                    Place Order (₹{cartTotal})
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+          )}
+        </div>
 
         {/* ORDER REVIEW - RIGHT (5 Columns) */}
         <div className="lg:col-span-5 flex flex-col gap-6">
