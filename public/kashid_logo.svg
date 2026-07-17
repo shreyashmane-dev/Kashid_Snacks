@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Saffron to Maroon gradient background -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff9f1c" />
+      <stop offset="50%" stop-color="#ff7a1a" />
+      <stop offset="100%" stop-color="#800020" />
+    </linearGradient>
+    
+    <!-- Gold gradient for patterns -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffe49e" />
+      <stop offset="100%" stop-color="#f4b251" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background Card Circle -->
+  <circle cx="256" cy="256" r="240" fill="url(#bgGrad)" stroke="#ffffff" stroke-width="12" />
+
+  <!-- Outer Ring Decoration -->
+  <circle cx="256" cy="256" r="215" fill="none" stroke="#ffe49e" stroke-width="4" stroke-dasharray="8 8" opacity="0.6" />
+
+  <!-- Stylized Royal Snack (A round crispy Papad/Sev spiral) -->
+  <g transform="translate(256, 230) scale(1.15)">
+    <!-- Swirling Crispy Spiral representing traditional snacks -->
+    <path d="M-90,-10 C-120,40 -40,110 10,80 C70,50 90,-40 30,-80 C-30,-110 -90,-40 -50,10 C-20,40 30,30 20,-10 C10,-30 -20,-20 -10,-5" 
+          fill="none" stroke="url(#goldGrad)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" />
+    
+    <!-- Red Chilli/Spice Sparkles representing Indian hot spice -->
+    <path d="M-60,70 L-50,85 L-65,95 Z" fill="#ff3838" />
+    <path d="M75,-50 L90,-40 L70,-30 Z" fill="#ff3838" />
+    <path d="M-10,-95 L5,-110 L15,-90 Z" fill="#ff3838" />
+    
+    <!-- Saffron Strands -->
+    <path d="M-95,15 Q-110,5 -125,20" fill="none" stroke="#ffe49e" stroke-width="4" stroke-linecap="round" />
+    <path d="M95,15 Q115,25 105,45" fill="none" stroke="#ffe49e" stroke-width="4" stroke-linecap="round" />
+  </g>
+
+  <!-- Crown / Royal Crest at the Top -->
+  <path d="M216 100 L236 120 L256 90 L276 120 L296 100 L286 140 L226 140 Z" fill="url(#goldGrad)" />
+  <circle cx="256" cy="80" r="6" fill="#ffe49e" />
+  <circle cx="216" cy="92" r="4" fill="#ffe49e" />
+  <circle cx="296" cy="92" r="4" fill="#ffe49e" />
+
+  <!-- Brand Typography -->
+  <text x="256" y="420" font-family="'Arial Black', 'Helvetica Neue', 'Outfit', sans-serif" font-weight="900" font-size="76" fill="#ffffff" text-anchor="middle" letter-spacing="4">
+    KASHID
+  </text>
+  
+  <text x="256" y="465" font-family="'Arial Black', 'Helvetica Neue', 'Outfit', sans-serif" font-weight="800" font-size="30" fill="#ffe49e" text-anchor="middle" letter-spacing="12" opacity="0.9">
+    SNACKS
+  </text>
+</svg>
