@@ -50,6 +50,13 @@ export default function ProductDetail() {
     fetchWishlist();
   }, [currentUser]);
 
+  // Prefill review name with current user name if logged in
+  useEffect(() => {
+    if (currentUser) {
+      setNewReviewName(currentUser.displayName || currentUser.email?.split('@')[0] || '');
+    }
+  }, [currentUser]);
+
   const toggleWishlist = async () => {
     if (!currentUser) {
       alert("Please log in to manage your wishlist!");
@@ -125,12 +132,6 @@ export default function ProductDetail() {
     addToCart(product, quantity, selectedVariant);
   };
 
-  // Prefill review name with current user name if logged in
-  useEffect(() => {
-    if (currentUser) {
-      setNewReviewName(currentUser.displayName || currentUser.email?.split('@')[0] || '');
-    }
-  }, [currentUser]);
 
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
