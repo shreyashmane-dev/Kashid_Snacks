@@ -7,7 +7,7 @@ import {
   sendPasswordResetEmail,
   onAuthStateChanged
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, googleProvider, isFirebaseMock } from '../config/firebase';
 
 const AuthContext = createContext();
@@ -94,10 +94,60 @@ export function AuthProvider({ children }) {
       return;
     }
 
+    let unsubSnapshot = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      // Clear any existing user document snapshot listener
+      if (unsubSnapshot) {
+        unsubSnapshot();
+        unsubSnapshot = null;
+      }
+
       if (user) {
         setCurrentUser(user);
-        await checkAdminPrivileges(user);
+        
+        // Check if email is explicitly listed in VITE_ADMIN_EMAILS
+        const envAdminEmails = [
+          'admin@kashidsnacks.com',
+          ...(import.meta.env.VITE_ADMIN_EMAILS || '')
+            .split(',')
+            .map(e => e.trim().toLowerCase())
+        ].filter(Boolean);
+
+        const isEmailAdmin = envAdminEmails.includes(user.email?.toLowerCase());
+
+        if (isEmailAdmin) {
+          setIsAdmin(true);
+          // Auto-upsert admin role
+          try {
+            const userDocRef = doc(db, 'users', user.uid);
+            const userDoc = await getDoc(userDocRef);
+            if (!userDoc.exists() || userDoc.data().role !== 'admin') {
+              await setDoc(userDocRef, {
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName || 'Kashid Admin',
+                role: 'admin',
+                updatedAt: new Date().toISOString()
+              }, { merge: true });
+            }
+          } catch (e) {
+            console.error("Auto-upsert admin failed:", e);
+          }
+        } else {
+          // Set up real-time listener on the user's firestore document
+          const userDocRef = doc(db, 'users', user.uid);
+          unsubSnapshot = onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().role === 'admin') {
+              setIsAdmin(true);
+            } else {
+              setIsAdmin(false);
+            }
+          }, (error) => {
+            console.error("Error in real-time user role check:", error);
+            setIsAdmin(false);
+          });
+        }
       } else {
         setCurrentUser(null);
         setIsAdmin(false);
@@ -105,7 +155,12 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      if (unsubSnapshot) {
+        unsubSnapshot();
+      }
+    };
   }, []);
 
   // MOCK ACTIONS
