@@ -183,6 +183,12 @@ export function CartProvider({ children }) {
   const cartSubtotal = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
   const cartCount = cartItems.reduce((count, item) => count + item.quantity, 0);
 
+  // Delivery fee — reads from admin settings saved in localStorage
+  const standardDeliveryFee = Number(localStorage.getItem('admin_delivery_fee') ?? 40);
+  const freeDeliveryThreshold = Number(localStorage.getItem('admin_free_threshold') ?? 500);
+  const isFreeDelivery = cartSubtotal >= freeDeliveryThreshold;
+  const deliveryFee = isFreeDelivery ? 0 : standardDeliveryFee;
+
   // Recalculate discount when subtotal or promo code changes
   useEffect(() => {
     if (!promoCode) {
@@ -238,7 +244,7 @@ export function CartProvider({ children }) {
     setDiscount(0);
   };
 
-  const cartTotal = Math.max(0, cartSubtotal - discount);
+  const cartTotal = Math.max(0, cartSubtotal - discount + deliveryFee);
 
   return (
     <CartContext.Provider value={{
@@ -246,6 +252,10 @@ export function CartProvider({ children }) {
       cartCount,
       cartSubtotal,
       cartTotal,
+      deliveryFee,
+      isFreeDelivery,
+      standardDeliveryFee,
+      freeDeliveryThreshold,
       discount,
       promoCode,
       addToCart,

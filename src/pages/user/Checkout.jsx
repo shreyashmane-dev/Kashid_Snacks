@@ -18,7 +18,7 @@ const loadRazorpayScript = () => {
 };
 
 export default function Checkout() {
-  const { cartItems, cartSubtotal, cartTotal, discount, promoCode, applyPromoCode, removePromoCode, clearCart } = useCart();
+  const { cartItems, cartSubtotal, cartTotal, deliveryFee, isFreeDelivery, discount, promoCode, applyPromoCode, removePromoCode, clearCart } = useCart();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
@@ -134,6 +134,7 @@ export default function Checkout() {
       items: cartItems,
       subtotal: cartSubtotal,
       discount: discount,
+      deliveryCharge: deliveryFee,
       total: cartTotal,
       shippingAddress: {
         fullName: name,
@@ -626,9 +627,18 @@ export default function Checkout() {
                 <span>Subtotal</span>
                 <span className="font-semibold text-charcoal">₹{cartSubtotal}</span>
               </div>
-              <div className="flex justify-between text-charcoal/60">
-                <span>Delivery Charges</span>
-                <span className="font-semibold text-emerald-600">FREE</span>
+              <div className="flex justify-between text-charcoal/60 items-center">
+                <span className="flex items-center gap-1.5">
+                  <Truck className="w-3 h-3" /> Delivery Charges
+                  {isFreeDelivery && (
+                    <span className="text-[9px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">FREE ABOVE ₹500</span>
+                  )}
+                </span>
+                {isFreeDelivery ? (
+                  <span className="font-bold text-emerald-600">FREE</span>
+                ) : (
+                  <span className="font-semibold text-charcoal">+₹{deliveryFee}</span>
+                )}
               </div>
               {promoCode && (
                 <div className="flex justify-between text-emerald-600 font-semibold">

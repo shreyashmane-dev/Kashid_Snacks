@@ -1,13 +1,181 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { MOCK_ORDERS, PRODUCTS } from '../../utils/mockData';
-import { ShoppingBag, MapPin, Heart, Settings, User, Clock, Trash2, Plus, ArrowRight, Eye, Key } from 'lucide-react';
+import { ShoppingBag, MapPin, Heart, Settings, User, Clock, Trash2, Plus, Eye, Key, Package, CheckCircle2, Truck, Home, Star } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import KashiMascot from '../../components/KashiMascot';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db, isFirebaseMock } from '../../config/firebase';
-
 import { useNavigate, Link } from 'react-router-dom';
+
+// Amazon-style 5-step order status tracker
+const ORDER_STEPS = [
+  { key: 'Order Placed',      label: 'Ordered',          icon: CheckCircle2 },
+  { key: 'Confirmed',         label: 'Confirmed',        icon: Package },
+  { key: 'Shipped',           label: 'Shipped',          icon: Truck },
+  { key: 'Out for Delivery',  label: 'Out for Delivery', icon: MapPin },
+  { key: 'Delivered',         label: 'Delivered',        icon: Home },
+];
+
+const STATUS_INDEX = {
+  'Order Placed': 0,
+  'Confirmed': 1,
+  'Shipped': 2,
+  'Out for Delivery': 3,
+  'Delivered': 4,
+};
+
+function AmazonOrderTracker({ order, onBack }) {
+  const currentIdx = STATUS_INDEX[order.status] ?? 0;
+
+  // Estimated delivery: 5 days from order
+  const estDate = new Date(order.createdAt);
+  estDate.setDate(estDate.getDate() + 5);
+  const estDelivery = estDate.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <button onClick={onBack} className="text-xs font-bold text-charcoal/60 hover:text-saffron flex items-center gap-1 transition-colors">
+          ← Back to Orders
+        </button>
+        <span className="font-bold text-xs text-charcoal bg-saffron-light/20 px-3 py-1 rounded-full">{order.id}</span>
+      </div>
+
+      {/* Amazon stepper */}
+      <div className="glass-panel p-6 rounded-3xl bg-white/40 border-white/60">
+        <div className="flex items-start justify-between mb-2">
+          <div>
+            <p className="text-[10px] text-charcoal/50 uppercase font-bold tracking-wider">Delivery Status</p>
+            <h3 className="font-heading font-extrabold text-lg text-charcoal mt-0.5">
+              {order.status === 'Delivered' ? '🎉 Package Delivered!' : `Estimated by ${estDelivery}`}
+            </h3>
+          </div>
+          <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${
+            order.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :
+            order.status === 'Out for Delivery' ? 'bg-blue-100 text-blue-700' :
+            'bg-saffron-light/30 text-saffron-dark'
+          }`}>
+            {order.status}
+          </span>
+        </div>
+
+        {/* 5-step horizontal stepper */}
+        <div className="relative mt-6 mb-2">
+          {/* Background connector line */}
+          <div className="absolute top-5 left-[10%] right-[10%] h-0.5 bg-charcoal/10 z-0" />
+          {/* Progress fill */}
+          <div
+            className="absolute top-5 left-[10%] h-0.5 bg-gradient-to-r from-saffron to-maroon z-0 transition-all duration-700"
+            style={{ width: `${(currentIdx / (ORDER_STEPS.length - 1)) * 80}%` }}
+          />
+
+          <div className="relative z-10 flex justify-between">
+            {ORDER_STEPS.map((step, idx) => {
+              const StepIcon = step.icon;
+              const isCompleted = idx <= currentIdx;
+              const isCurrent = idx === currentIdx;
+
+              return (
+                <div key={step.key} className="flex flex-col items-center w-[20%]">
+                  <div className={`
+                    w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500
+                    ${isCompleted
+                      ? 'bg-gradient-to-br from-saffron to-maroon border-saffron text-white shadow-md'
+                      : 'bg-white border-charcoal/15 text-charcoal/30'}
+                    ${isCurrent ? 'scale-110 ring-4 ring-saffron/20' : ''}
+                  `}>
+                    <StepIcon className="w-4 h-4" />
+                  </div>
+                  <span className={`text-[9px] font-bold mt-2 text-center leading-tight ${
+                    isCompleted ? 'text-maroon' : 'text-charcoal/35'
+                  }`}>
+                    {step.label}
+                  </span>
+                  {isCurrent && (
+                    <span className="text-[8px] text-saffron font-extrabold mt-0.5 uppercase tracking-wide">● Now</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Two-col: timeline + shipping */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Timeline events */}
+        <div className="glass-panel p-5 rounded-3xl bg-white/40 border-white/60">
+          <h4 className="text-[10px] font-bold text-charcoal/50 uppercase tracking-wider mb-4">Activity Log</h4>
+          <div className="relative pl-5 space-y-4 before:absolute before:left-2 before:top-1 before:bottom-1 before:w-0.5 before:bg-saffron-light/30">
+            {(order.timeline || []).slice().reverse().map((event, idx) => (
+              <div key={idx} className="relative text-xs">
+                <span className="absolute -left-5 top-1 w-3 h-3 rounded-full bg-saffron border-2 border-white shadow-sm" />
+                <h5 className="font-bold text-charcoal">{event.status}</h5>
+                <p className="text-[10px] text-charcoal/50 mt-0.5 leading-relaxed">{event.note}</p>
+                <span className="text-[8px] text-charcoal/35 font-mono block mt-1">
+                  {new Date(event.time).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Order details */}
+        <div className="space-y-3">
+          {/* Shipping */}
+          <div className="glass-panel p-4 rounded-2xl bg-white/40 border-white/60">
+            <h4 className="text-[10px] font-bold text-charcoal/50 uppercase tracking-wider mb-2 flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5 text-saffron" /> Delivery Address
+            </h4>
+            <p className="text-xs font-bold text-charcoal">{order.shippingAddress?.fullName}</p>
+            <p className="text-[11px] text-charcoal/60 mt-1 leading-relaxed">
+              {order.shippingAddress?.addressLine},<br />
+              {order.shippingAddress?.city}, {order.shippingAddress?.state} - {order.shippingAddress?.pincode}
+            </p>
+          </div>
+
+          {/* Pricing */}
+          <div className="glass-panel p-4 rounded-2xl bg-white/40 border-white/60 space-y-2">
+            <h4 className="text-[10px] font-bold text-charcoal/50 uppercase tracking-wider mb-2">Price Breakdown</h4>
+            <div className="flex justify-between text-[11px] text-charcoal/60">
+              <span>Subtotal</span><span className="font-semibold text-charcoal">₹{order.subtotal}</span>
+            </div>
+            <div className="flex justify-between text-[11px] text-charcoal/60">
+              <span className="flex items-center gap-1"><Truck className="w-3 h-3" /> Delivery</span>
+              <span className={`font-semibold ${order.deliveryCharge === 0 ? 'text-emerald-600' : 'text-charcoal'}`}>
+                {order.deliveryCharge === 0 ? 'FREE' : `₹${order.deliveryCharge}`}
+              </span>
+            </div>
+            {order.discount > 0 && (
+              <div className="flex justify-between text-[11px] text-emerald-600 font-semibold">
+                <span>Discount</span><span>-₹{order.discount}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-xs font-bold text-charcoal border-t border-dashed border-saffron-light/20 pt-2 mt-1">
+              <span>Total Paid</span><span className="text-maroon">₹{order.total}</span>
+            </div>
+            <p className="text-[10px] text-charcoal/40 mt-1">via {order.paymentMethod}</p>
+          </div>
+
+          {/* Items */}
+          <div className="glass-panel p-4 rounded-2xl bg-white/40 border-white/60">
+            <h4 className="text-[10px] font-bold text-charcoal/50 uppercase tracking-wider mb-2">Items</h4>
+            <div className="space-y-1.5">
+              {order.items?.map((item, i) => (
+                <div key={i} className="flex justify-between text-[11px]">
+                  <span className="text-charcoal font-medium truncate max-w-[180px]">{item.name} ({item.weight}) × {item.quantity}</span>
+                  <span className="font-bold text-charcoal">₹{item.price * item.quantity}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Profile() {
   const { currentUser, loading } = useAuth();
@@ -308,7 +476,9 @@ export default function Profile() {
           {/* A. ORDERS HISTORY */}
           {activeTab === 'orders' && (
             <div className="space-y-6">
-              {!selectedOrder ? (
+              {selectedOrder ? (
+                <AmazonOrderTracker order={selectedOrder} onBack={() => setSelectedOrder(null)} />
+              ) : (
                 <>
                   <h3 className="font-heading font-bold text-lg text-charcoal flex items-center gap-2 mb-2"><ShoppingBag className="w-5 h-5 text-saffron" /> Your Order History</h3>
 
@@ -324,120 +494,56 @@ export default function Profile() {
                       <Link to="/shop" className="bg-saffron hover:bg-saffron-dark text-white font-heading font-bold px-6 py-2.5 rounded-full inline-block mt-4 text-xs shadow-sm transition-colors cursor-pointer">Shop Snacks Now</Link>
                     </div>
                   ) : (
-                    <div className="space-y-4">
-                      {orders.map((o) => (
-                        <div key={o.id} className="glass-panel p-5 rounded-3xl bg-white/40 border-white/60 flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:shadow-md transition-shadow">
-                          <div>
-                            <div className="flex items-center gap-3">
-                              <span className="font-bold text-sm text-charcoal">{o.id}</span>
-                              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-saffron-light/35 text-saffron-dark'
-                                }`}>{o.status}</span>
+                    <div className="space-y-3">
+                      {orders.map((o) => {
+                        const stepIdx = STATUS_INDEX[o.status] ?? 0;
+                        const progress = Math.round((stepIdx / (ORDER_STEPS.length - 1)) * 100);
+                        return (
+                          <div
+                            key={o.id}
+                            className="glass-panel p-5 rounded-3xl bg-white/40 border-white/60 hover:shadow-md transition-shadow cursor-pointer"
+                            onClick={() => setSelectedOrder(o)}
+                          >
+                            <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-3">
+                              <div className="flex-grow">
+                                <div className="flex items-center gap-3 flex-wrap">
+                                  <span className="font-bold text-sm text-charcoal">{o.id}</span>
+                                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                                    o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' :
+                                    o.status === 'Out for Delivery' ? 'bg-blue-100 text-blue-700' :
+                                    'bg-saffron-light/35 text-saffron-dark'
+                                  }`}>
+                                    {o.status}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-charcoal/50 mt-1">Placed on: {new Date(o.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                <p className="text-xs font-semibold text-charcoal/70 mt-1.5">{o.items?.slice(0, 2).map(i => `${i.name} (${i.weight})`).join(', ')}{o.items?.length > 2 ? ` +${o.items.length - 2} more` : ''}</p>
+
+                                {/* Mini progress bar */}
+                                <div className="mt-3 flex items-center gap-2">
+                                  <div className="flex-grow h-1.5 bg-charcoal/10 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-gradient-to-r from-saffron to-maroon rounded-full transition-all duration-500"
+                                      style={{ width: `${progress}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[9px] font-bold text-charcoal/40 shrink-0">{ORDER_STEPS[stepIdx]?.label}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between sm:flex-col sm:items-end gap-4 border-t sm:border-0 pt-3 sm:pt-0">
+                                <span className="font-heading font-extrabold text-maroon text-base">₹{o.total}</span>
+                                <button className="text-xs font-bold text-saffron hover:underline flex items-center gap-1">
+                                  Track <Eye className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
-                            <p className="text-[10px] text-charcoal/50 mt-1">Placed on: {new Date(o.createdAt).toLocaleDateString()}</p>
-                            <p className="text-xs font-semibold text-charcoal/70 mt-2">{o.items.map(i => `${i.name} (${i.weight})`).join(', ')}</p>
                           </div>
-                          <div className="flex items-center justify-between sm:justify-end gap-6 border-t sm:border-0 pt-3 sm:pt-0">
-                            <span className="font-heading font-extrabold text-maroon text-base">₹{o.total}</span>
-                            <button
-                              onClick={() => setSelectedOrder(o)}
-                              className="text-xs font-bold text-saffron hover:underline flex items-center gap-1"
-                            >
-                              Track Details <Eye className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </>
-              ) : (
-                /* Detail Tracker inside Profile */
-                <div className="glass-panel p-6 rounded-3xl bg-white/40 border-white/60 space-y-6">
-                  <div className="flex justify-between items-center border-b border-saffron-light/20 pb-4">
-                    <button
-                      onClick={() => setSelectedOrder(null)}
-                      className="text-xs font-bold text-charcoal/60 hover:text-saffron flex items-center gap-1"
-                    >
-                      ← Back to History
-                    </button>
-                    <span className="font-bold text-xs text-charcoal">{selectedOrder.id} Tracker</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                    <div>
-                      <h4 className="text-xs font-bold text-charcoal uppercase tracking-wider mb-4">Delivery Status Timeline</h4>
-
-                      {/* Horizontal Visual Stepper */}
-                      <div className="flex items-center justify-between mb-8 px-2 relative">
-                        <div className="absolute top-[18px] left-[10%] right-[10%] h-0.5 bg-saffron-light/30 z-0"></div>
-                        <div
-                          className="absolute top-[18px] left-[10%] h-0.5 bg-saffron z-0 transition-all duration-500"
-                          style={{
-                            width:
-                              selectedOrder.status === 'Order Placed' ? '0%' :
-                                selectedOrder.status === 'Confirmed' ? '33%' :
-                                  selectedOrder.status === 'Shipped' ? '66%' : '80%'
-                          }}
-                        ></div>
-
-                        {[
-                          { label: 'Placed', icon: CheckCircle },
-                          { label: 'Confirmed', icon: Shield },
-                          { label: 'Shipped', icon: Truck },
-                          { label: 'Delivered', icon: ShoppingBag }
-                        ].map((step, index) => {
-                          const statusOrder = ['Order Placed', 'Confirmed', 'Shipped', 'Delivered'];
-                          const currentStatusIndex = statusOrder.indexOf(selectedOrder.status);
-                          const isCompleted = currentStatusIndex >= index;
-                          const isCurrent = currentStatusIndex === index;
-                          const StepIcon = step.icon;
-
-                          return (
-                            <div key={index} className="flex flex-col items-center z-10 w-[20%] text-center">
-                              <div className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all ${isCompleted
-                                  ? 'bg-saffron border-saffron text-white shadow-md'
-                                  : 'bg-white border-saffron-light/40 text-charcoal/30'
-                                } ${isCurrent ? 'scale-110 ring-4 ring-saffron-light/30' : ''}`}>
-                                <StepIcon className="w-4 h-4" />
-                              </div>
-                              <span className={`text-[9px] font-bold mt-2 ${isCompleted ? 'text-saffron-dark font-extrabold' : 'text-charcoal/40'}`}>
-                                {step.label}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Timeline Events Log */}
-                      <div className="space-y-4">
-                        <h4 className="text-[10px] font-bold text-charcoal/50 uppercase tracking-wider mb-2">Detailed Log</h4>
-                        <div className="relative pl-5 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-saffron-light/30">
-                          {selectedOrder.timeline.map((event, idx) => (
-                            <div key={idx} className="relative text-xs">
-                              <span className="absolute -left-5 top-0.5 w-3 h-3 rounded-full bg-saffron border border-white"></span>
-                              <div>
-                                <h5 className="font-bold text-charcoal">{event.status}</h5>
-                                <p className="text-[10px] text-charcoal/50 mt-0.5">{event.note}</p>
-                                <span className="text-[8px] text-charcoal/40 font-mono block mt-1">{new Date(event.time).toLocaleString()}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-white/40 border border-saffron-light/25 p-4 rounded-2xl flex flex-col gap-3">
-                      <h4 className="text-xs font-bold text-charcoal uppercase tracking-wider border-b border-saffron-light/10 pb-1.5">Shipping Details</h4>
-                      <p className="text-xs font-bold text-charcoal">{selectedOrder.shippingAddress.fullName}</p>
-                      <p className="text-xs text-charcoal/70 leading-relaxed mt-0.5">
-                        {selectedOrder.shippingAddress.addressLine}, <br />
-                        {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} - {selectedOrder.shippingAddress.pincode}
-                      </p>
-                      <p className="text-[10px] text-charcoal/50 mt-1">Payment Method: {selectedOrder.paymentMethod}</p>
-                      <p className="text-[10px] text-charcoal/50">Total Amount: <span className="font-bold text-maroon">₹{selectedOrder.total}</span></p>
-                    </div>
-                  </div>
-                </div>
               )}
             </div>
           )}

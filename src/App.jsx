@@ -35,6 +35,7 @@ import ManageOrders from './pages/admin/ManageOrders';
 import CategoriesCoupons from './pages/admin/CategoriesCoupons';
 import StoreSettings from './pages/admin/Settings';
 import HomepageContentEditor from './pages/admin/HomepageContentEditor';
+import OurStoryEditor from './pages/admin/OurStoryEditor';
 
 export default function App() {
   return (
@@ -81,6 +82,7 @@ export default function App() {
               <Route path="coupons" element={<CategoriesCoupons />} />
               <Route path="settings" element={<StoreSettings />} />
               <Route path="homepage-editor" element={<HomepageContentEditor />} />
+              <Route path="our-story" element={<OurStoryEditor />} />
             </Route>
 
             {/* Fallback to root (Splash check redirects) */}

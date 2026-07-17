@@ -12,7 +12,8 @@ import {
   Tag, 
   Menu, 
   X,
-  Home
+  Home,
+  BookOpen
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -37,6 +38,7 @@ export default function AdminLayout() {
     { name: 'Manage Orders', path: '/admin/orders', icon: Receipt },
     { name: 'Categories & Coupons', path: '/admin/coupons', icon: Tag },
     { name: 'Homepage Editor', path: '/admin/homepage-editor', icon: Home },
+    { name: 'Our Story', path: '/admin/our-story', icon: BookOpen },
     { name: 'Settings', path: '/admin/settings', icon: Settings },
   ];
 

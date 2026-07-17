@@ -1,10 +1,13 @@
-import React from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ShieldAlert, ArrowLeft } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, RefreshCw } from 'lucide-react';
 
 export default function AdminGuard({ children }) {
-  const { currentUser, isAdmin, loading } = useAuth();
+  const { currentUser, isAdmin, loading, refreshAdmin } = useAuth();
+  const navigate = useNavigate();
+  const [checking, setChecking] = useState(false);
+  const [checked, setChecked] = useState(false);
 
   if (loading) {
     return (
@@ -18,6 +21,16 @@ export default function AdminGuard({ children }) {
   }
 
   if (!currentUser || !isAdmin) {
+    const handleRefresh = async () => {
+      setChecking(true);
+      setChecked(false);
+      await refreshAdmin?.();
+      setChecking(false);
+      setChecked(true);
+      // Navigate after short delay so state updates can propagate
+      setTimeout(() => navigate('/admin'), 300);
+    };
+
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center p-6">
         <div className="glass-panel max-w-md w-full p-8 rounded-3xl text-center shadow-glass-warm flex flex-col items-center">
@@ -28,6 +41,18 @@ export default function AdminGuard({ children }) {
           <p className="text-sm text-charcoal/70 mb-6 leading-relaxed">
             This section is restricted to store administrators only. To access the admin panel, please log in with administrative privileges.
           </p>
+
+          {/* Show refresh button if user is logged in but not yet admin */}
+          {currentUser && (
+            <button
+              onClick={handleRefresh}
+              disabled={checking}
+              className="w-full mb-3 flex items-center justify-center gap-2 bg-saffron/10 hover:bg-saffron/20 border border-saffron/30 text-saffron-dark font-heading font-semibold py-2.5 rounded-full text-sm transition-colors disabled:opacity-60"
+            >
+              <RefreshCw className={`w-4 h-4 ${checking ? 'animate-spin' : ''}`} />
+              {checking ? 'Re-checking your role…' : checked ? 'Checked! Redirecting…' : 'Already an admin? Refresh Role'}
+            </button>
+          )}
 
           <div className="flex flex-col sm:flex-row gap-3 w-full">
             <Link 

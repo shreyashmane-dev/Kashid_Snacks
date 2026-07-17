@@ -253,6 +253,13 @@ export function AuthProvider({ children }) {
     };
   };
 
+  // Re-check admin status from Firestore without logging out/in
+  const refreshAdmin = async () => {
+    if (currentUser) {
+      await checkAdminPrivileges(currentUser);
+    }
+  };
+
   const value = {
     currentUser,
     loading,
@@ -263,8 +270,10 @@ export function AuthProvider({ children }) {
     loginWithGoogle,
     resetPassword,
     verifyPhoneOTP,
+    refreshAdmin,
     isMock: isFirebaseMock
   };
+
 
   return (
     <AuthContext.Provider value={value}>
