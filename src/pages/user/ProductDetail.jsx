@@ -123,19 +123,28 @@ export default function ProductDetail() {
         setSelectedVariant(baseProduct.variants[0]);
       }
 
-      // Helper function to combine default mock reviews with user submitted reviews
+      // Helper function to combine default mock reviews with user submitted reviews from all users
       const mergeWithDefaultReviews = (userRevs) => {
         const defaultRevs = baseProduct.reviews || [];
-        const merged = [...userRevs];
-        
-        // Add default reviews if not already present
-        defaultRevs.forEach(defRev => {
-          if (!merged.some(r => String(r.id) === String(defRev.id))) {
-            merged.push(defRev);
+        const mergedMap = new Map();
+
+        // Add user submitted reviews first (take priority)
+        userRevs.forEach(r => {
+          if (r && r.id) {
+            mergedMap.set(String(r.id), r);
           }
         });
 
-        // Recalculate average rating & reviews count
+        // Add default mock reviews if not overwritten
+        defaultRevs.forEach(defRev => {
+          if (defRev && defRev.id && !mergedMap.has(String(defRev.id))) {
+            mergedMap.set(String(defRev.id), defRev);
+          }
+        });
+
+        const merged = Array.from(mergedMap.values());
+
+        // Recalculate aggregate rating & reviews count
         const totalRating = merged.reduce((sum, r) => sum + Number(r.rating || 5), 0);
         const avgRating = merged.length > 0 ? Number((totalRating / merged.length).toFixed(1)) : 5;
 
@@ -148,66 +157,57 @@ export default function ProductDetail() {
         } : prev);
       };
 
-      // 2. Load reviews from Firestore (Live Real-Time) or Local Storage (Mock)
+      const loadFromAllSources = (firestoreRevs = []) => {
+        const globalKeyRevs = JSON.parse(localStorage.getItem(`kashid_reviews_${id}`) || '[]');
+        const globalAllRevs = JSON.parse(localStorage.getItem('kashid_all_global_reviews') || '[]')
+          .filter(r => String(r.productId) === String(id));
+        const dbProducts = JSON.parse(localStorage.getItem('mock_products_db') || '[]');
+        const dbProd = dbProducts.find(p => String(p.id) === String(id));
+        const localProdRevs = dbProd?.reviews || [];
+
+        const combined = [...firestoreRevs];
+        [...globalKeyRevs, ...globalAllRevs, ...localProdRevs].forEach(r => {
+          if (r && !combined.some(c => String(c.id) === String(r.id))) {
+            combined.push(r);
+          }
+        });
+
+        mergeWithDefaultReviews(combined);
+      };
+
+      // 2. Load reviews from Firestore (Live Real-Time across all users) or Local Fallback
       if (!isFirebaseMock) {
         try {
-          const q = query(collection(db, 'reviews'), where('productId', '==', String(id)));
-          unsubSnapshot = onSnapshot(q, (snapshot) => {
+          // Listen to reviews collection without where index clause so it never fails
+          unsubSnapshot = onSnapshot(collection(db, 'reviews'), (snapshot) => {
             const firestoreReviews = [];
             snapshot.forEach((docSnap) => {
-              firestoreReviews.push({ id: docSnap.id, ...docSnap.data() });
-            });
-
-            // Also check local storage for offline / transient reviews
-            const globalStored = JSON.parse(localStorage.getItem(`kashid_reviews_${id}`) || '[]');
-            const combinedUserRevs = [...firestoreReviews];
-            
-            globalStored.forEach(locRev => {
-              if (!combinedUserRevs.some(r => String(r.id) === String(locRev.id))) {
-                combinedUserRevs.push(locRev);
+              const data = docSnap.data();
+              if (String(data.productId) === String(id)) {
+                firestoreReviews.push({ id: docSnap.id, ...data });
               }
             });
-
-            mergeWithDefaultReviews(combinedUserRevs);
+            loadFromAllSources(firestoreReviews);
           }, (err) => {
-            console.error("Firestore reviews listener error:", err);
-            const globalStored = JSON.parse(localStorage.getItem(`kashid_reviews_${id}`) || '[]');
-            mergeWithDefaultReviews(globalStored);
+            console.error("Firestore reviews listener warning:", err);
+            loadFromAllSources([]);
           });
         } catch (err) {
-          console.error("Error setting up real-time reviews listener:", err);
-          const globalStored = JSON.parse(localStorage.getItem(`kashid_reviews_${id}`) || '[]');
-          mergeWithDefaultReviews(globalStored);
+          console.error("Error creating real-time reviews listener:", err);
+          loadFromAllSources([]);
         }
       } else {
-        // Mock Mode: Load from localStorage + listen to BroadcastChannel/storage events
-        const loadLocalReviews = () => {
-          const globalStored = JSON.parse(localStorage.getItem(`kashid_reviews_${id}`) || '[]');
-          const dbProducts = JSON.parse(localStorage.getItem('mock_products_db') || '[]');
-          const dbProd = dbProducts.find(p => String(p.id) === String(id));
-          const localProdRevs = dbProd?.reviews || [];
-          
-          const combined = [...globalStored];
-          localProdRevs.forEach(r => {
-            if (!combined.some(c => String(c.id) === String(r.id))) {
-              combined.push(r);
-            }
-          });
-
-          mergeWithDefaultReviews(combined);
-        };
-
-        loadLocalReviews();
-
-        // Listen for updates from other tabs
-        const handleStorageChange = (e) => {
-          if (!e || e.key === `kashid_reviews_${id}` || e.key === 'mock_products_db') {
-            loadLocalReviews();
-          }
-        };
-        window.addEventListener('storage', handleStorageChange);
-        unsubStorage = () => window.removeEventListener('storage', handleStorageChange);
+        loadFromAllSources([]);
       }
+
+      // Listen for custom review broadcast & storage events across tabs/windows
+      const handleSyncEvent = () => loadFromAllSources([]);
+      window.addEventListener('storage', handleSyncEvent);
+      window.addEventListener('kashid_review_updated', handleSyncEvent);
+      unsubStorage = () => {
+        window.removeEventListener('storage', handleSyncEvent);
+        window.removeEventListener('kashid_review_updated', handleSyncEvent);
+      };
     };
 
     loadProductAndReviews();
@@ -246,8 +246,8 @@ export default function ProductDetail() {
     const newRevObj = {
       id: reviewDocId,
       productId: String(id),
-      userId: currentUser?.uid || null,
-      userEmail: currentUser?.email || null,
+      userId: currentUser?.uid || `guest-${userIdentifier.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      userEmail: currentUser?.email || '',
       user: newReviewName.trim(),
       comment: newReviewComment.trim(),
       rating: Number(newReviewRating),
@@ -255,7 +255,7 @@ export default function ProductDetail() {
       createdAt: new Date().toISOString()
     };
 
-    // 1. Update in-memory state immediately for instant response
+    // 1. Update in-memory state immediately for instant feedback
     let updatedUserReviews;
     if (existingUserReview) {
       updatedUserReviews = reviewsList.map(r => String(r.id) === String(reviewDocId) ? { ...r, ...newRevObj } : r);
@@ -263,7 +263,7 @@ export default function ProductDetail() {
       updatedUserReviews = [newRevObj, ...reviewsList];
     }
 
-    const totalRating = updatedUserReviews.reduce((sum, r) => sum + Number(r.rating), 0);
+    const totalRating = updatedUserReviews.reduce((sum, r) => sum + Number(r.rating || 5), 0);
     const avgRating = Number((totalRating / updatedUserReviews.length).toFixed(1));
 
     setReviewsList(updatedUserReviews);
@@ -274,11 +274,16 @@ export default function ProductDetail() {
       reviews: updatedUserReviews
     } : prev);
 
-    // 2. Save in product-specific local storage for cross-tab & offline persistence
+    // 2. Save in product-specific & global local storage for cross-tab & offline persistence
     const currentProductReviews = JSON.parse(localStorage.getItem(`kashid_reviews_${id}`) || '[]');
     const filteredLocal = currentProductReviews.filter(r => String(r.id) !== String(reviewDocId));
     filteredLocal.unshift(newRevObj);
     localStorage.setItem(`kashid_reviews_${id}`, JSON.stringify(filteredLocal));
+
+    const globalAllRevs = JSON.parse(localStorage.getItem('kashid_all_global_reviews') || '[]');
+    const filteredGlobalAll = globalAllRevs.filter(r => String(r.id) !== String(reviewDocId));
+    filteredGlobalAll.unshift(newRevObj);
+    localStorage.setItem('kashid_all_global_reviews', JSON.stringify(filteredGlobalAll));
 
     // Also update global mock_products_db
     const dbProducts = JSON.parse(localStorage.getItem('mock_products_db') || '[]');
@@ -306,8 +311,9 @@ export default function ProductDetail() {
     }
     localStorage.setItem('mock_products_db', JSON.stringify(updatedDbProducts));
 
-    // Trigger storage event so other open tabs update immediately
+    // Broadcast event so other open tabs/windows update in real-time
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('kashid_review_updated', { detail: newRevObj }));
 
     // 3. Save to Global Live Firebase Firestore in `reviews` collection (so ALL users worldwide see it in real-time!)
     if (!isFirebaseMock) {
