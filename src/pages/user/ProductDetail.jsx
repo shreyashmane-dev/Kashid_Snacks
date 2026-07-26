@@ -89,11 +89,15 @@ export default function ProductDetail() {
   useEffect(() => {
     const loadProduct = async () => {
       let found = null;
+
+      // 1. Try checking local storage first for any updated reviews or product state
+      const dbProducts = JSON.parse(localStorage.getItem('mock_products_db') || '[]');
+      const localFound = dbProducts.find(p => String(p.id) === String(id));
+
       if (isFirebaseMock) {
-        const dbProducts = JSON.parse(localStorage.getItem('mock_products_db') || '[]');
-        const list = dbProducts.length > 0 ? dbProducts : PRODUCTS;
-        found = list.find(p => p.id === id);
+        found = localFound || PRODUCTS.find(p => String(p.id) === String(id));
       } else {
+        // Live Firebase mode: try Firestore
         try {
           const docRef = doc(db, 'products', id);
           const docSnap = await getDoc(docRef);
@@ -102,6 +106,19 @@ export default function ProductDetail() {
           }
         } catch (error) {
           console.error("Error loading product detail from firestore:", error);
+        }
+
+        // Fallback to local storage or mockData if Firestore record isn't available
+        if (!found) {
+          found = localFound || PRODUCTS.find(p => String(p.id) === String(id));
+        } else if (localFound && localFound.reviews && localFound.reviews.length > (found.reviews?.length || 0)) {
+          // If local storage has more recent reviews than Firestore, use local reviews
+          found = {
+            ...found,
+            reviews: localFound.reviews,
+            rating: localFound.rating,
+            reviewsCount: localFound.reviewsCount
+          };
         }
       }
 
@@ -152,7 +169,7 @@ export default function ProductDetail() {
     const totalRating = updatedReviews.reduce((sum, r) => sum + r.rating, 0);
     const avgRating = Number((totalRating / updatedReviews.length).toFixed(1));
 
-    // Update locally in component state
+    // Update locally in component state immediately
     setReviewsList(updatedReviews);
     setProduct(prev => ({
       ...prev,
@@ -161,26 +178,40 @@ export default function ProductDetail() {
       reviews: updatedReviews
     }));
 
-    if (isFirebaseMock) {
-      // Save in mock local storage database
-      const dbProducts = JSON.parse(localStorage.getItem('mock_products_db') || '[]');
-      const baseList = dbProducts.length > 0 ? dbProducts : PRODUCTS;
-      const updatedList = baseList.map(p => {
-        if (p.id === id) {
-          return {
-            ...p,
-            rating: avgRating,
-            reviewsCount: updatedReviews.length,
-            reviews: updatedReviews
-          };
-        }
-        return p;
+    // 1. ALWAYS save in local storage database so reviews persist across refreshes
+    const dbProducts = JSON.parse(localStorage.getItem('mock_products_db') || '[]');
+    const baseList = dbProducts.length > 0 ? dbProducts : PRODUCTS;
+    let productExistedLocally = false;
+
+    const updatedList = baseList.map(p => {
+      if (String(p.id) === String(id)) {
+        productExistedLocally = true;
+        return {
+          ...p,
+          rating: avgRating,
+          reviewsCount: updatedReviews.length,
+          reviews: updatedReviews
+        };
+      }
+      return p;
+    });
+
+    if (!productExistedLocally && product) {
+      updatedList.push({
+        ...product,
+        rating: avgRating,
+        reviewsCount: updatedReviews.length,
+        reviews: updatedReviews
       });
-      localStorage.setItem('mock_products_db', JSON.stringify(updatedList));
-    } else {
-      // Save in Live Firebase Firestore using setDoc with merge
+    }
+
+    localStorage.setItem('mock_products_db', JSON.stringify(updatedList));
+
+    // 2. Also save to Live Firebase Firestore if not in mock mode
+    if (!isFirebaseMock) {
       try {
         await setDoc(doc(db, 'products', id), {
+          ...product,
           reviews: updatedReviews,
           rating: avgRating,
           reviewsCount: updatedReviews.length
