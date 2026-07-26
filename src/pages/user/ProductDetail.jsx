@@ -27,8 +27,20 @@ export default function ProductDetail() {
   const [helpfulState, setHelpfulState] = useState({});
   const [activeTab, setActiveTab] = useState('description');
   const [reviewSuccessMsg, setReviewSuccessMsg] = useState('');
+  const [isEditingReview, setIsEditingReview] = useState(false);
 
   const [wishlistIds, setWishlistIds] = useState([]);
+
+  // Find existing review from this customer for this specific product
+  const existingUserReview = reviewsList.find(r => {
+    if (currentUser) {
+      if (r.userId && r.userId === currentUser.uid) return true;
+      if (r.userEmail && r.userEmail === currentUser.email) return true;
+      if (r.user && currentUser.displayName && r.user.toLowerCase() === currentUser.displayName.toLowerCase()) return true;
+    }
+    if (newReviewName && r.user && r.user.trim().toLowerCase() === newReviewName.trim().toLowerCase()) return true;
+    return false;
+  });
 
   // Fetch user wishlist on startup/auth change
   useEffect(() => {
@@ -157,15 +169,38 @@ export default function ProductDetail() {
     e.preventDefault();
     if (!newReviewName.trim() || !newReviewComment.trim()) return;
 
-    const newRev = {
-      id: Date.now(),
-      user: newReviewName.trim(),
-      comment: newReviewComment.trim(),
-      rating: Number(newReviewRating),
-      date: new Date().toISOString().split('T')[0]
-    };
+    let updatedReviews = [];
 
-    const updatedReviews = [newRev, ...reviewsList];
+    if (existingUserReview) {
+      // Update existing review entry for this user on this product
+      updatedReviews = reviewsList.map(r => {
+        if (r.id === existingUserReview.id) {
+          return {
+            ...r,
+            user: newReviewName.trim(),
+            userId: currentUser?.uid || r.userId || null,
+            userEmail: currentUser?.email || r.userEmail || null,
+            comment: newReviewComment.trim(),
+            rating: Number(newReviewRating),
+            date: new Date().toISOString().split('T')[0]
+          };
+        }
+        return r;
+      });
+    } else {
+      // Create new review
+      const newRev = {
+        id: Date.now(),
+        userId: currentUser?.uid || null,
+        userEmail: currentUser?.email || null,
+        user: newReviewName.trim(),
+        comment: newReviewComment.trim(),
+        rating: Number(newReviewRating),
+        date: new Date().toISOString().split('T')[0]
+      };
+      updatedReviews = [newRev, ...reviewsList];
+    }
+
     const totalRating = updatedReviews.reduce((sum, r) => sum + r.rating, 0);
     const avgRating = Number((totalRating / updatedReviews.length).toFixed(1));
 
@@ -221,9 +256,10 @@ export default function ProductDetail() {
       }
     }
 
+    setIsEditingReview(false);
     setNewReviewComment('');
     setNewReviewRating(5);
-    setReviewSuccessMsg("Thank you! Your review has been successfully submitted.");
+    setReviewSuccessMsg(existingUserReview ? "Your review has been updated!" : "Thank you! Your review has been submitted.");
     setTimeout(() => setReviewSuccessMsg(''), 4000);
   };
 
@@ -520,11 +556,16 @@ export default function ProductDetail() {
                       const userInitial = (rev.user || 'S').charAt(0).toUpperCase();
                       const isHelpful = helpfulState[rev.id];
                       const helpfulCount = (rev.helpfulCount || 0) + (isHelpful ? 1 : 0);
+                      const isUserOwnReview = existingUserReview && rev.id === existingUserReview.id;
 
                       return (
                         <div 
                           key={rev.id} 
-                          className="glass-panel p-6 rounded-3xl bg-white/50 border-white/80 hover:border-saffron/40 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-glass-warm relative overflow-hidden"
+                          className={`glass-panel p-6 rounded-3xl transition-all duration-300 shadow-sm hover:shadow-glass-warm relative overflow-hidden ${
+                            isUserOwnReview
+                              ? 'bg-amber-50/60 border-2 border-saffron/60 shadow-md'
+                              : 'bg-white/50 border-white/80 hover:border-saffron/40 hover:-translate-y-1'
+                          }`}
                         >
                           <div className="flex justify-between items-start flex-wrap gap-2">
                             <div className="flex items-center gap-3">
@@ -533,11 +574,16 @@ export default function ProductDetail() {
                                 {userInitial}
                               </div>
                               <div>
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   <h4 className="font-heading font-bold text-sm text-charcoal">{rev.user}</h4>
                                   <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
                                     <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Verified Buyer
                                   </span>
+                                  {isUserOwnReview && (
+                                    <span className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-maroon bg-saffron-light/30 px-2.5 py-0.5 rounded-full border border-saffron-light/50">
+                                      ✨ Your Review
+                                    </span>
+                                  )}
                                 </div>
                                 <span className="text-[10px] text-charcoal/40 font-medium">{rev.date}</span>
                               </div>
@@ -584,91 +630,155 @@ export default function ProductDetail() {
                   })()}
                 </div>
 
-                {/* SUBMIT REVIEW FORM (5 Columns) */}
+                {/* SUBMIT OR ALREADY REVIEWED FORM PANEL (5 Columns) */}
                 <div className="lg:col-span-5 glass-panel p-6 rounded-3xl bg-white/60 border-saffron-light/30 shadow-glass-warm sticky top-24">
-                  <div className="flex items-center gap-2 mb-4 border-b border-saffron-light/20 pb-3">
-                    <div className="w-8 h-8 rounded-full bg-saffron-light/20 flex items-center justify-center text-saffron">
-                      <Sparkles className="w-4 h-4" />
+                  {existingUserReview && !isEditingReview ? (
+                    /* ALREADY REVIEWED DISPLAY CARD */
+                    <div className="space-y-4 text-center py-2 animate-fadeIn">
+                      <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+                        <CheckCircle2 className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">Review Submitted</span>
+                        <h3 className="font-heading font-extrabold text-lg text-charcoal mt-3">You've Reviewed This Snack!</h3>
+                        <p className="text-xs text-charcoal/60 mt-1">Each customer can leave one review per product. Thank you for sharing your thoughts!</p>
+                      </div>
+
+                      <div className="glass-panel p-4 rounded-2xl bg-saffron-light/10 border border-saffron-light/20 text-left space-y-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold text-charcoal">{existingUserReview.user}</span>
+                          <div className="flex text-turmeric">
+                            {[...Array(5)].map((_, i) => (
+                              <Star key={i} className={`w-3 h-3 ${i < existingUserReview.rating ? 'fill-current' : 'text-charcoal/20'}`} />
+                            ))}
+                          </div>
+                        </div>
+                        <p className="text-xs italic text-charcoal/70">"{existingUserReview.comment}"</p>
+                        <span className="text-[9px] text-charcoal/40 font-mono block text-right">{existingUserReview.date}</span>
+                      </div>
+
+                      {reviewSuccessMsg && (
+                        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl p-3 text-center animate-fadeIn">
+                          <span className="font-semibold">{reviewSuccessMsg}</span>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditingReview(true);
+                          setNewReviewRating(existingUserReview.rating);
+                          setNewReviewComment(existingUserReview.comment);
+                          if (existingUserReview.user) setNewReviewName(existingUserReview.user);
+                        }}
+                        className="w-full bg-saffron hover:bg-saffron-dark text-white font-heading font-bold py-3 rounded-full text-xs shadow-sm transition-all cursor-pointer"
+                      >
+                        Edit Your Review
+                      </button>
                     </div>
+                  ) : (
+                    /* REVIEW FORM (NEW OR EDITING) */
                     <div>
-                      <h3 className="font-heading font-bold text-base text-charcoal">Write a Review</h3>
-                      <p className="text-[10px] text-charcoal/60">Share your royal crunch experience</p>
-                    </div>
-                  </div>
-                  
-                  {reviewSuccessMsg && (
-                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl p-3.5 mb-4 flex items-center gap-2 animate-fadeIn shadow-sm">
-                      <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
-                      <span className="font-semibold">{reviewSuccessMsg}</span>
+                      <div className="flex items-center justify-between mb-4 border-b border-saffron-light/20 pb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-saffron-light/20 flex items-center justify-center text-saffron">
+                            <Sparkles className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h3 className="font-heading font-bold text-base text-charcoal">
+                              {isEditingReview ? 'Update Your Review' : 'Write a Review'}
+                            </h3>
+                            <p className="text-[10px] text-charcoal/60">
+                              {isEditingReview ? 'Modify your previously submitted review' : 'Share your royal crunch experience'}
+                            </p>
+                          </div>
+                        </div>
+                        {isEditingReview && (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingReview(false)}
+                            className="text-[10px] font-bold text-charcoal/50 hover:text-maroon underline"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                      
+                      {reviewSuccessMsg && (
+                        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl p-3.5 mb-4 flex items-center gap-2 animate-fadeIn shadow-sm">
+                          <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
+                          <span className="font-semibold">{reviewSuccessMsg}</span>
+                        </div>
+                      )}
+
+                      <form onSubmit={handleReviewSubmit} className="space-y-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-charcoal/75 uppercase tracking-wide mb-1.5">Your Name</label>
+                          <input 
+                            type="text" 
+                            value={newReviewName}
+                            onChange={e => setNewReviewName(e.target.value)}
+                            placeholder="Amit Sharma"
+                            className="w-full glass-input rounded-full py-2.5 px-4 text-xs font-semibold"
+                            required
+                          />
+                        </div>
+
+                        {/* INTERACTIVE STAR SELECTOR */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-charcoal/75 uppercase tracking-wide mb-1.5">Rate Your Experience</label>
+                          <div className="flex items-center gap-2 bg-saffron-light/10 p-3 rounded-2xl border border-saffron-light/20">
+                            <div className="flex gap-1" onMouseLeave={() => setHoverRating(0)}>
+                              {[1, 2, 3, 4, 5].map((starVal) => {
+                                const isFilled = starVal <= (hoverRating || newReviewRating);
+                                return (
+                                  <button
+                                    key={starVal}
+                                    type="button"
+                                    onClick={() => setNewReviewRating(starVal)}
+                                    onMouseEnter={() => setHoverRating(starVal)}
+                                    className="p-1 transition-transform hover:scale-125 focus:outline-none cursor-pointer"
+                                  >
+                                    <Star 
+                                      className={`w-6 h-6 transition-all ${
+                                        isFilled ? 'fill-turmeric text-turmeric drop-shadow-sm' : 'text-charcoal/20'
+                                      }`} 
+                                    />
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <span className="text-[11px] font-extrabold text-maroon ml-auto">
+                              {newReviewRating === 5 && '🌟 Royal (5/5)'}
+                              {newReviewRating === 4 && '😋 Tasty (4/5)'}
+                              {newReviewRating === 3 && '👌 Average (3/5)'}
+                              {newReviewRating === 2 && '🌶️ Less Spice (2/5)'}
+                              {newReviewRating === 1 && '😞 Poor (1/5)'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-charcoal/75 uppercase tracking-wide mb-1.5">Your Review Comments</label>
+                          <textarea 
+                            value={newReviewComment}
+                            onChange={e => setNewReviewComment(e.target.value)}
+                            placeholder="Describe the crunchiness, aroma, fresh seasoning, and spice level!"
+                            className="w-full glass-input rounded-2xl py-3 px-4 text-xs h-28 resize-none font-body"
+                            required
+                          />
+                        </div>
+
+                        <button 
+                          type="submit"
+                          className="w-full bg-gradient-to-r from-saffron to-saffron-dark hover:from-saffron-dark hover:to-maroon text-white font-heading font-extrabold py-3.5 rounded-full text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Sparkles className="w-4 h-4" />
+                          {isEditingReview ? 'Update Your Review' : 'Submit Snack Review'}
+                        </button>
+                      </form>
                     </div>
                   )}
-
-                  <form onSubmit={handleReviewSubmit} className="space-y-4">
-                    <div>
-                      <label className="block text-[10px] font-bold text-charcoal/75 uppercase tracking-wide mb-1.5">Your Name</label>
-                      <input 
-                        type="text" 
-                        value={newReviewName}
-                        onChange={e => setNewReviewName(e.target.value)}
-                        placeholder="Amit Sharma"
-                        className="w-full glass-input rounded-full py-2.5 px-4 text-xs font-semibold"
-                        required
-                      />
-                    </div>
-
-                    {/* INTERACTIVE STAR SELECTOR */}
-                    <div>
-                      <label className="block text-[10px] font-bold text-charcoal/75 uppercase tracking-wide mb-1.5">Rate Your Experience</label>
-                      <div className="flex items-center gap-2 bg-saffron-light/10 p-3 rounded-2xl border border-saffron-light/20">
-                        <div className="flex gap-1" onMouseLeave={() => setHoverRating(0)}>
-                          {[1, 2, 3, 4, 5].map((starVal) => {
-                            const isFilled = starVal <= (hoverRating || newReviewRating);
-                            return (
-                              <button
-                                key={starVal}
-                                type="button"
-                                onClick={() => setNewReviewRating(starVal)}
-                                onMouseEnter={() => setHoverRating(starVal)}
-                                className="p-1 transition-transform hover:scale-125 focus:outline-none cursor-pointer"
-                              >
-                                <Star 
-                                  className={`w-6 h-6 transition-all ${
-                                    isFilled ? 'fill-turmeric text-turmeric drop-shadow-sm' : 'text-charcoal/20'
-                                  }`} 
-                                />
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <span className="text-[11px] font-extrabold text-maroon ml-auto">
-                          {newReviewRating === 5 && '🌟 Royal (5/5)'}
-                          {newReviewRating === 4 && '😋 Tasty (4/5)'}
-                          {newReviewRating === 3 && '👌 Average (3/5)'}
-                          {newReviewRating === 2 && '🌶️ Less Spice (2/5)'}
-                          {newReviewRating === 1 && '😞 Poor (1/5)'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-charcoal/75 uppercase tracking-wide mb-1.5">Your Review Comments</label>
-                      <textarea 
-                        value={newReviewComment}
-                        onChange={e => setNewReviewComment(e.target.value)}
-                        placeholder="Describe the crunchiness, aroma, fresh seasoning, and spice level!"
-                        className="w-full glass-input rounded-2xl py-3 px-4 text-xs h-28 resize-none font-body"
-                        required
-                      />
-                    </div>
-
-                    <button 
-                      type="submit"
-                      className="w-full bg-gradient-to-r from-saffron to-saffron-dark hover:from-saffron-dark hover:to-maroon text-white font-heading font-extrabold py-3.5 rounded-full text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      Submit Snack Review
-                    </button>
-                  </form>
                 </div>
               </div>
             </div>
