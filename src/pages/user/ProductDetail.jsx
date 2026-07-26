@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { PRODUCTS, CATEGORIES } from '../../utils/mockData';
-import { Star, ShoppingBag, Plus, Minus, ArrowLeft, Heart, ShieldCheck, Truck, RotateCcw } from 'lucide-react';
+import { Star, ShoppingBag, Plus, Minus, ArrowLeft, Heart, ShieldCheck, Truck, RotateCcw, Sparkles, CheckCircle2 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { db, isFirebaseMock } from '../../config/firebase';
 
 export default function ProductDetail() {
@@ -23,6 +23,7 @@ export default function ProductDetail() {
   const [newReviewComment, setNewReviewComment] = useState('');
   const [newReviewRating, setNewReviewRating] = useState(5);
   const [activeTab, setActiveTab] = useState('description');
+  const [reviewSuccessMsg, setReviewSuccessMsg] = useState('');
 
   const [wishlistIds, setWishlistIds] = useState([]);
 
@@ -132,15 +133,14 @@ export default function ProductDetail() {
     addToCart(product, quantity, selectedVariant);
   };
 
-
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
-    if (!newReviewName || !newReviewComment) return;
+    if (!newReviewName.trim() || !newReviewComment.trim()) return;
 
     const newRev = {
       id: Date.now(),
-      user: newReviewName,
-      comment: newReviewComment,
+      user: newReviewName.trim(),
+      comment: newReviewComment.trim(),
       rating: Number(newReviewRating),
       date: new Date().toISOString().split('T')[0]
     };
@@ -161,7 +161,8 @@ export default function ProductDetail() {
     if (isFirebaseMock) {
       // Save in mock local storage database
       const dbProducts = JSON.parse(localStorage.getItem('mock_products_db') || '[]');
-      const updatedList = dbProducts.map(p => {
+      const baseList = dbProducts.length > 0 ? dbProducts : PRODUCTS;
+      const updatedList = baseList.map(p => {
         if (p.id === id) {
           return {
             ...p,
@@ -174,13 +175,13 @@ export default function ProductDetail() {
       });
       localStorage.setItem('mock_products_db', JSON.stringify(updatedList));
     } else {
-      // Save in Live Firebase Firestore
+      // Save in Live Firebase Firestore using setDoc with merge
       try {
-        await updateDoc(doc(db, 'products', id), {
+        await setDoc(doc(db, 'products', id), {
           reviews: updatedReviews,
           rating: avgRating,
           reviewsCount: updatedReviews.length
-        });
+        }, { merge: true });
       } catch (err) {
         console.error("Failed to persist product review to Firestore:", err);
       }
@@ -188,6 +189,8 @@ export default function ProductDetail() {
 
     setNewReviewComment('');
     setNewReviewRating(5);
+    setReviewSuccessMsg("Thank you! Your review has been successfully submitted.");
+    setTimeout(() => setReviewSuccessMsg(''), 4000);
   };
 
   const currentPrice = selectedVariant ? selectedVariant.price : product.price;
@@ -418,6 +421,14 @@ export default function ProductDetail() {
               {/* Submit Review Form */}
               <div className="glass-panel p-6 rounded-3xl bg-white/50 border-saffron-light/20">
                 <h3 className="font-heading font-bold text-base text-charcoal mb-4 flex items-center gap-1.5"><Sparkles className="w-4 h-4 text-saffron" /> Share Your Review</h3>
+                
+                {reviewSuccessMsg && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl p-3 mb-4 flex items-center gap-2 animate-fadeIn">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{reviewSuccessMsg}</span>
+                  </div>
+                )}
+
                 <form onSubmit={handleReviewSubmit} className="space-y-4">
                   <div>
                     <label className="block text-[10px] font-bold text-charcoal/75 uppercase tracking-wide mb-1">Your Name</label>

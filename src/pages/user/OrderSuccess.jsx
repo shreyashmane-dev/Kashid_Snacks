@@ -15,22 +15,31 @@ export default function OrderSuccess() {
     const fetchOrder = async () => {
       if (!orderId) return setLoading(false);
 
+      let found = null;
+
       if (isFirebaseMock) {
         // Load from localStorage or mockData
         const existingMockOrders = JSON.parse(localStorage.getItem('mock_orders_db') || '[]');
-        const found = existingMockOrders.find(o => o.id === orderId) || MOCK_ORDERS.find(o => o.id === orderId);
-        setOrder(found || null);
+        found = existingMockOrders.find(o => o.id === orderId) || MOCK_ORDERS.find(o => o.id === orderId);
       } else {
         try {
           const docRef = doc(db, 'orders', orderId);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
-            setOrder(docSnap.data());
+            found = docSnap.data();
           }
         } catch (error) {
-          console.error("Error fetching order:", error);
+          console.error("Error fetching order from Firestore:", error);
+        }
+
+        // Fallback to local storage if Firestore record is not retrieved immediately
+        if (!found) {
+          const existingMockOrders = JSON.parse(localStorage.getItem('mock_orders_db') || '[]');
+          found = existingMockOrders.find(o => o.id === orderId) || MOCK_ORDERS.find(o => o.id === orderId);
         }
       }
+
+      setOrder(found || null);
       setLoading(false);
     };
 

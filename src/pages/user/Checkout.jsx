@@ -178,20 +178,24 @@ export default function Checkout() {
       try {
         await new Promise(resolve => setTimeout(resolve, 1200));
 
-        if (isFirebaseMock) {
-          const existingMockOrders = JSON.parse(localStorage.getItem('mock_orders_db') || '[]');
-          existingMockOrders.unshift(finalOrder);
-          localStorage.setItem('mock_orders_db', JSON.stringify(existingMockOrders));
+        const existingMockOrders = JSON.parse(localStorage.getItem('mock_orders_db') || '[]');
+        existingMockOrders.unshift(finalOrder);
+        localStorage.setItem('mock_orders_db', JSON.stringify(existingMockOrders));
 
-          if (currentUser) {
-            const userOrders = JSON.parse(localStorage.getItem('mock_user_orders') || '{}');
-            const currentList = userOrders[currentUser.uid] || [];
-            currentList.unshift(finalOrder);
-            userOrders[currentUser.uid] = currentList;
-            localStorage.setItem('mock_user_orders', JSON.stringify(userOrders));
+        if (currentUser) {
+          const userOrders = JSON.parse(localStorage.getItem('mock_user_orders') || '{}');
+          const currentList = userOrders[currentUser.uid] || [];
+          currentList.unshift(finalOrder);
+          userOrders[currentUser.uid] = currentList;
+          localStorage.setItem('mock_user_orders', JSON.stringify(userOrders));
+        }
+
+        if (!isFirebaseMock) {
+          try {
+            await setDoc(doc(db, 'orders', finalOrder.id), finalOrder);
+          } catch (err) {
+            console.error("Firestore COD order save warning:", err);
           }
-        } else {
-          await setDoc(doc(db, 'orders', finalOrder.id), finalOrder);
         }
 
         const notificationList = JSON.parse(localStorage.getItem('kashid_notifications') || '[]');
@@ -240,6 +244,14 @@ export default function Checkout() {
           currentList.unshift(localFinalOrder);
           userOrders[currentUser.uid] = currentList;
           localStorage.setItem('mock_user_orders', JSON.stringify(userOrders));
+        }
+
+        if (!isFirebaseMock) {
+          try {
+            await setDoc(doc(db, 'orders', localFinalOrder.id), localFinalOrder);
+          } catch (err) {
+            console.error("Firestore payment order save warning:", err);
+          }
         }
 
         const notificationList = JSON.parse(localStorage.getItem('kashid_notifications') || '[]');
