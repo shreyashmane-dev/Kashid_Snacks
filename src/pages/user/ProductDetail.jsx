@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { PRODUCTS, CATEGORIES } from '../../utils/mockData';
-import { Star, ShoppingBag, Plus, Minus, ArrowLeft, Heart, ShieldCheck, Truck, RotateCcw, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Star, ShoppingBag, Plus, Minus, ArrowLeft, Heart, ShieldCheck, Truck, RotateCcw, Sparkles, CheckCircle2, ThumbsUp, Filter, MessageSquare, Award, Flame, Check } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
@@ -22,6 +22,9 @@ export default function ProductDetail() {
   const [newReviewName, setNewReviewName] = useState('');
   const [newReviewComment, setNewReviewComment] = useState('');
   const [newReviewRating, setNewReviewRating] = useState(5);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [filterRating, setFilterRating] = useState('all');
+  const [helpfulState, setHelpfulState] = useState({});
   const [activeTab, setActiveTab] = useState('description');
   const [reviewSuccessMsg, setReviewSuccessMsg] = useState('');
 
@@ -376,13 +379,14 @@ export default function ProductDetail() {
           </button>
           <button 
             onClick={() => setActiveTab('reviews')}
-            className={`pb-3.5 px-2 font-heading font-extrabold text-sm uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
+            className={`pb-3.5 px-2 font-heading font-extrabold text-sm uppercase tracking-wider transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
               activeTab === 'reviews'
                 ? 'border-maroon text-maroon'
                 : 'border-transparent text-charcoal/40 hover:text-charcoal'
             }`}
           >
-            Reviews ({reviewsList.length})
+            <span>Reviews ({reviewsList.length})</span>
+            <span className="text-[10px] bg-saffron/20 text-saffron-dark px-2 py-0.5 rounded-full font-bold">★ {product.rating}</span>
           </button>
         </div>
 
@@ -393,88 +397,248 @@ export default function ProductDetail() {
               <p className="text-sm text-charcoal/70 leading-relaxed font-body whitespace-pre-line">{product.description}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
-              {/* Reviews List */}
-              <div className="lg:col-span-2 space-y-4">
-                {reviewsList.length === 0 ? (
-                  <p className="text-xs text-charcoal/50 italic">No reviews submitted yet for this product. Be the first to share your spiced thoughts!</p>
-                ) : (
-                  reviewsList.map((rev) => (
-                    <div key={rev.id} className="glass-panel p-5 rounded-2xl bg-white/45 border-white/60">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-heading font-bold text-sm text-charcoal">{rev.user}</h4>
-                          <span className="text-[10px] text-charcoal/40 font-medium">{rev.date}</span>
+            <div className="space-y-8">
+              {/* RICH RATING OVERVIEW & BREAKDOWN DASHBOARD */}
+              <div className="glass-panel p-6 rounded-3xl bg-gradient-to-r from-saffron-light/10 via-white/50 to-amber-500/10 border-white/80 grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+                {/* Left Big Score Badge */}
+                <div className="md:col-span-4 flex flex-col items-center justify-center text-center border-b md:border-b-0 md:border-r border-saffron-light/20 pb-6 md:pb-0 md:pr-6">
+                  <span className="font-heading font-black text-5xl sm:text-6xl text-maroon tracking-tight">{product.rating}</span>
+                  <div className="flex text-turmeric my-2">
+                    {[...Array(5)].map((_, i) => (
+                      <Star 
+                        key={i} 
+                        className={`w-5 h-5 ${i < Math.floor(product.rating) ? 'fill-current text-turmeric' : 'text-charcoal/20'}`} 
+                      />
+                    ))}
+                  </div>
+                  <p className="text-xs font-bold text-charcoal/70 mt-1">Based on {reviewsList.length} Snack Lover reviews</p>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-3 py-1 rounded-full mt-3">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> 98% Verified Snack Approval
+                  </span>
+                </div>
+
+                {/* Right Star Rating Breakdown Progress Bars */}
+                <div className="md:col-span-8 space-y-2.5">
+                  {[5, 4, 3, 2, 1].map((star) => {
+                    const count = reviewsList.filter(r => r.rating === star).length;
+                    const percent = reviewsList.length > 0 ? (count / reviewsList.length) * 100 : 0;
+                    return (
+                      <div key={star} className="flex items-center gap-3 text-xs">
+                        <span className="font-bold text-charcoal/70 w-12 flex items-center gap-1">
+                          {star} <Star className="w-3 h-3 fill-current text-turmeric inline" />
+                        </span>
+                        <div className="flex-grow h-3 bg-charcoal/10 rounded-full overflow-hidden relative">
+                          <div 
+                            className="h-full bg-gradient-to-r from-saffron to-maroon rounded-full transition-all duration-500" 
+                            style={{ width: `${percent}%` }}
+                          />
                         </div>
-                        <div className="flex text-turmeric">
-                          {[...Array(5)].map((_, i) => (
-                            <Star key={i} className={`w-3.5 h-3.5 ${i < rev.rating ? 'fill-current' : 'text-charcoal/20'}`} />
-                          ))}
-                        </div>
+                        <span className="text-[11px] font-mono text-charcoal/60 w-12 text-right">{count} ({Math.round(percent)}%)</span>
                       </div>
-                      <p className="text-xs text-charcoal/70 leading-relaxed font-body mt-3">"{rev.comment}"</p>
-                    </div>
-                  ))
-                )}
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Submit Review Form */}
-              <div className="glass-panel p-6 rounded-3xl bg-white/50 border-saffron-light/20">
-                <h3 className="font-heading font-bold text-base text-charcoal mb-4 flex items-center gap-1.5"><Sparkles className="w-4 h-4 text-saffron" /> Share Your Review</h3>
-                
-                {reviewSuccessMsg && (
-                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl p-3 mb-4 flex items-center gap-2 animate-fadeIn">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>{reviewSuccessMsg}</span>
-                  </div>
-                )}
+              {/* REVIEWS FILTER CHIPS */}
+              <div className="flex items-center justify-between flex-wrap gap-3 pt-2 border-t border-saffron-light/20">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-charcoal/60 uppercase tracking-wider flex items-center gap-1 mr-2">
+                    <Filter className="w-3.5 h-3.5 text-saffron" /> Filter Reviews:
+                  </span>
+                  {['all', 5, 4, 3, 2, 1].map((filterVal) => {
+                    const count = filterVal === 'all' ? reviewsList.length : reviewsList.filter(r => r.rating === filterVal).length;
+                    const isActive = filterRating === filterVal;
+                    return (
+                      <button
+                        key={filterVal}
+                        onClick={() => setFilterRating(filterVal)}
+                        className={`text-xs font-heading font-bold px-3.5 py-1.5 rounded-full border transition-all cursor-pointer ${
+                          isActive 
+                            ? 'bg-maroon border-maroon text-white shadow-sm' 
+                            : 'glass-card text-charcoal/70 border-saffron-light/20 hover:border-saffron/40'
+                        }`}
+                      >
+                        {filterVal === 'all' ? `All (${count})` : `${filterVal} Stars (${count})`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-                <form onSubmit={handleReviewSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-charcoal/75 uppercase tracking-wide mb-1">Your Name</label>
-                    <input 
-                      type="text" 
-                      value={newReviewName}
-                      onChange={e => setNewReviewName(e.target.value)}
-                      placeholder="Amit Sharma"
-                      className="w-full glass-input rounded-full py-2 px-4 text-xs"
-                      required
-                    />
-                  </div>
+              {/* MAIN CONTENT GRID: REVIEWS LIST + INTERACTIVE SUBMIT FORM */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* REVIEWS LIST (7 Columns) */}
+                <div className="lg:col-span-7 space-y-4">
+                  {(() => {
+                    const filteredReviews = filterRating === 'all' 
+                      ? reviewsList 
+                      : reviewsList.filter(r => r.rating === Number(filterRating));
 
-                  <div>
-                    <label className="block text-[10px] font-bold text-charcoal/75 uppercase tracking-wide mb-1">Rating</label>
-                    <select 
-                      value={newReviewRating}
-                      onChange={e => setNewReviewRating(e.target.value)}
-                      className="w-full glass-input rounded-full py-2 px-4 text-xs font-semibold"
+                    if (filteredReviews.length === 0) {
+                      return (
+                        <div className="glass-panel p-8 text-center rounded-3xl bg-white/30 border-white/60">
+                          <MessageSquare className="w-10 h-10 text-saffron/40 mx-auto mb-3" />
+                          <h4 className="font-heading font-bold text-sm text-charcoal">No Reviews Found for Selection</h4>
+                          <p className="text-xs text-charcoal/50 mt-1">Be the first to share your thoughts for this rating level!</p>
+                        </div>
+                      );
+                    }
+
+                    return filteredReviews.map((rev) => {
+                      const userInitial = (rev.user || 'S').charAt(0).toUpperCase();
+                      const isHelpful = helpfulState[rev.id];
+                      const helpfulCount = (rev.helpfulCount || 0) + (isHelpful ? 1 : 0);
+
+                      return (
+                        <div 
+                          key={rev.id} 
+                          className="glass-panel p-6 rounded-3xl bg-white/50 border-white/80 hover:border-saffron/40 hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-glass-warm relative overflow-hidden"
+                        >
+                          <div className="flex justify-between items-start flex-wrap gap-2">
+                            <div className="flex items-center gap-3">
+                              {/* Avatar circle with dynamic gradient */}
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-saffron via-amber-500 to-maroon text-white font-heading font-extrabold flex items-center justify-center text-sm shadow-sm shrink-0">
+                                {userInitial}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <h4 className="font-heading font-bold text-sm text-charcoal">{rev.user}</h4>
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Verified Buyer
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-charcoal/40 font-medium">{rev.date}</span>
+                              </div>
+                            </div>
+
+                            {/* Stars rating badge */}
+                            <div className="flex items-center gap-1 text-turmeric bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+                              {[...Array(5)].map((_, i) => (
+                                <Star key={i} className={`w-3.5 h-3.5 ${i < rev.rating ? 'fill-current text-turmeric' : 'text-charcoal/20'}`} />
+                              ))}
+                              <span className="text-xs font-bold text-charcoal/80 ml-1">{rev.rating}.0</span>
+                            </div>
+                          </div>
+
+                          <p className="text-xs sm:text-sm text-charcoal/80 leading-relaxed font-body mt-4 pl-1 border-l-2 border-saffron-light/40">
+                            "{rev.comment}"
+                          </p>
+
+                          {/* Reaction bar */}
+                          <div className="mt-4 pt-3 border-t border-saffron-light/10 flex items-center justify-between text-xs">
+                            <span className="text-[10px] font-bold text-saffron uppercase tracking-wider flex items-center gap-1">
+                              <Sparkles className="w-3 h-3" /> Royal Flavor Approved
+                            </span>
+                            <button
+                              onClick={() => {
+                                setHelpfulState(prev => ({
+                                  ...prev,
+                                  [rev.id]: !prev[rev.id]
+                                }));
+                              }}
+                              className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full transition-all cursor-pointer ${
+                                isHelpful 
+                                  ? 'bg-saffron text-white font-bold shadow-sm' 
+                                  : 'bg-charcoal/5 hover:bg-saffron-light/20 text-charcoal/60 hover:text-saffron font-semibold'
+                              }`}
+                            >
+                              <ThumbsUp className={`w-3.5 h-3.5 ${isHelpful ? 'fill-current' : ''}`} />
+                              <span>Helpful ({helpfulCount})</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+
+                {/* SUBMIT REVIEW FORM (5 Columns) */}
+                <div className="lg:col-span-5 glass-panel p-6 rounded-3xl bg-white/60 border-saffron-light/30 shadow-glass-warm sticky top-24">
+                  <div className="flex items-center gap-2 mb-4 border-b border-saffron-light/20 pb-3">
+                    <div className="w-8 h-8 rounded-full bg-saffron-light/20 flex items-center justify-center text-saffron">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-heading font-bold text-base text-charcoal">Write a Review</h3>
+                      <p className="text-[10px] text-charcoal/60">Share your royal crunch experience</p>
+                    </div>
+                  </div>
+                  
+                  {reviewSuccessMsg && (
+                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl p-3.5 mb-4 flex items-center gap-2 animate-fadeIn shadow-sm">
+                      <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
+                      <span className="font-semibold">{reviewSuccessMsg}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleReviewSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-charcoal/75 uppercase tracking-wide mb-1.5">Your Name</label>
+                      <input 
+                        type="text" 
+                        value={newReviewName}
+                        onChange={e => setNewReviewName(e.target.value)}
+                        placeholder="Amit Sharma"
+                        className="w-full glass-input rounded-full py-2.5 px-4 text-xs font-semibold"
+                        required
+                      />
+                    </div>
+
+                    {/* INTERACTIVE STAR SELECTOR */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-charcoal/75 uppercase tracking-wide mb-1.5">Rate Your Experience</label>
+                      <div className="flex items-center gap-2 bg-saffron-light/10 p-3 rounded-2xl border border-saffron-light/20">
+                        <div className="flex gap-1" onMouseLeave={() => setHoverRating(0)}>
+                          {[1, 2, 3, 4, 5].map((starVal) => {
+                            const isFilled = starVal <= (hoverRating || newReviewRating);
+                            return (
+                              <button
+                                key={starVal}
+                                type="button"
+                                onClick={() => setNewReviewRating(starVal)}
+                                onMouseEnter={() => setHoverRating(starVal)}
+                                className="p-1 transition-transform hover:scale-125 focus:outline-none cursor-pointer"
+                              >
+                                <Star 
+                                  className={`w-6 h-6 transition-all ${
+                                    isFilled ? 'fill-turmeric text-turmeric drop-shadow-sm' : 'text-charcoal/20'
+                                  }`} 
+                                />
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <span className="text-[11px] font-extrabold text-maroon ml-auto">
+                          {newReviewRating === 5 && '🌟 Royal (5/5)'}
+                          {newReviewRating === 4 && '😋 Tasty (4/5)'}
+                          {newReviewRating === 3 && '👌 Average (3/5)'}
+                          {newReviewRating === 2 && '🌶️ Less Spice (2/5)'}
+                          {newReviewRating === 1 && '😞 Poor (1/5)'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-charcoal/75 uppercase tracking-wide mb-1.5">Your Review Comments</label>
+                      <textarea 
+                        value={newReviewComment}
+                        onChange={e => setNewReviewComment(e.target.value)}
+                        placeholder="Describe the crunchiness, aroma, fresh seasoning, and spice level!"
+                        className="w-full glass-input rounded-2xl py-3 px-4 text-xs h-28 resize-none font-body"
+                        required
+                      />
+                    </div>
+
+                    <button 
+                      type="submit"
+                      className="w-full bg-gradient-to-r from-saffron to-saffron-dark hover:from-saffron-dark hover:to-maroon text-white font-heading font-extrabold py-3.5 rounded-full text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <option value={5}>5 Stars (Royal Taste)</option>
-                      <option value={4}>4 Stars (Very Good)</option>
-                      <option value={3}>3 Stars (Average Crunch)</option>
-                      <option value={2}>2 Stars (Lacks Spice)</option>
-                      <option value={1}>1 Star (Bad Batch)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-charcoal/75 uppercase tracking-wide mb-1">Comments</label>
-                    <textarea 
-                      value={newReviewComment}
-                      onChange={e => setNewReviewComment(e.target.value)}
-                      placeholder="Tell us what you liked about the crunch, aroma, and spice blend!"
-                      className="w-full glass-input rounded-2xl py-2 px-4 text-xs h-24 resize-none"
-                      required
-                    />
-                  </div>
-
-                  <button 
-                    type="submit"
-                    className="w-full bg-saffron hover:bg-saffron-dark text-white font-heading font-bold py-2.5 rounded-full text-xs shadow-sm transition-colors cursor-pointer"
-                  >
-                    Submit Review
-                  </button>
-                </form>
+                      <Sparkles className="w-4 h-4" />
+                      Submit Snack Review
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
           )}
