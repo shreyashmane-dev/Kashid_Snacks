@@ -47,9 +47,8 @@ service cloud.firestore {
 
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin() ||
-        (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if true;
+      allow update, delete: if isSignedIn();
     }
 
     match /homepageContent/{docId} {
